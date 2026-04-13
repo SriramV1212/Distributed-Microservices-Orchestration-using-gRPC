@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+import "search.proto";
+
+service OrchestratorService {
+  rpc BookFlight (BookingRequest) returns (BookingResponse);
+  rpc StreamFlightPrices (BookingRequest) returns (stream Flight);
+}
+
+message BookingRequest {
+  string user_id = 1;
+  string source = 2;
+  string destination = 3;
+}
+
+message BookingResponse {
+  bool success = 1;
+  string message = 2;
+}

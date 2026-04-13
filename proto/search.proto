@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+service SearchService {
+    rpc SearchFlights (SearchRequest) returns (SearchResponse);
+    rpc StreamFlightPrices (SearchRequest) returns (stream Flight);
+}
+
+message SearchRequest {
+  string source = 1;
+  string destination = 2;
+}
+
+message Flight {
+  string flight_id = 1;
+  string airline = 2;
+  float price = 3;
+}
+
+message SearchResponse {
+  repeated Flight flights = 1;
+}

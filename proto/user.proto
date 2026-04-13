@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+service UserService {
+  rpc ValidateUser (UserRequest) returns (UserResponse);
+}
+
+message UserRequest {
+  string user_id = 1;
+}
+
+message UserResponse {
+  bool is_valid = 1;
+}
