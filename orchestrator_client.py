@@ -14,10 +14,14 @@ def run():
         destination="LA"
     )
 
-    responses = stub.StreamFlightPrices(request)
+    response = stub.BookFlight(request)
 
-    for flight in responses:
-        print("Orchestrator Live Price:", flight.price)
+    print("Booking Response:", response.message)
+
+    # for flight in responses:
+    #     print("Orchestrator Live Price:", flight.price)
+
+
 
 
 if __name__ == "__main__":

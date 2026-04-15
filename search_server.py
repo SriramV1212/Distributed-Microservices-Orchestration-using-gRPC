@@ -10,6 +10,12 @@ import random
 class SearchService(search_pb2_grpc.SearchServiceServicer):
 
     def SearchFlights(self, request, context):
+
+        if random.random() < 0.5:
+          raise Exception("Search service failed randomly")
+        
+        print("Received search request for source:", request.source, "destination:", request.destination)
+
         source = request.source
         destination = request.destination
 
