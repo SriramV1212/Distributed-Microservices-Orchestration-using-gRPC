@@ -12,6 +12,17 @@ import search_pb2_grpc
 
 import time
 
+from tracing import init_tracing
+from opentelemetry.instrumentation.grpc import (
+    GrpcInstrumentorServer,
+    GrpcInstrumentorClient
+)
+
+from opentelemetry import trace
+
+tracer = trace.get_tracer(__name__)
+
+
 class CircuitBreaker:
 
     def __init__(self, failure_threshold=3, recovery_time=10):
@@ -76,49 +87,81 @@ def call_with_retry(func, request, max_retries=3):
             time.sleep(delay)
             delay *= 2  # exponential backoff
 
+def get_ssl_credentials():
+    with open("certs/client.key", "rb") as f:
+        client_key = f.read()
+
+    with open("certs/client.crt", "rb") as f:
+        client_cert = f.read()
+
+    with open("certs/ca.crt", "rb") as f:
+        ca_cert = f.read()
+
+    return grpc.ssl_channel_credentials(
+        root_certificates=ca_cert,
+        private_key=client_key,
+        certificate_chain=client_cert
+    )
+
+def create_secure_channel(target):
+    credentials = get_ssl_credentials()
+    return grpc.secure_channel(target, credentials)
+
 
 class OrchestratorService(orchestrator_pb2_grpc.OrchestratorServiceServicer):
 
     def BookFlight(self, request, context):
 
-        user_id = request.user_id
-        source = request.source
-        destination = request.destination
+        with tracer.start_as_current_span("Book Flight Business Logic"):
 
-        print("Orchestrator received request")
+            user_id = request.user_id
+            source = request.source
+            destination = request.destination
 
-        user_channel = grpc.insecure_channel('localhost:50051')
-        user_stub = user_pb2_grpc.UserServiceStub(user_channel)
+            print("Orchestrator received request")
 
-        user_request = user_pb2.UserRequest(user_id=user_id)
-        user_response = call_with_retry(user_stub.ValidateUser, user_request)
+            user_channel = create_secure_channel('localhost:50051')
+            user_stub = user_pb2_grpc.UserServiceStub(user_channel)
 
-        if not user_response.is_valid:
-            return orchestrator_pb2.BookingResponse(
-                success=False,
-                message="User is invalid"
+            user_request = user_pb2.UserRequest(user_id=user_id)
+
+            with tracer.start_as_current_span("Validate User Logic") as span:
+                span.set_attribute("user_id", user_id)
+                user_response = call_with_retry(user_stub.ValidateUser, user_request)
+
+            if not user_response.is_valid:
+                return orchestrator_pb2.BookingResponse(
+                    success=False,
+                    message="User is invalid"
+                )
+
+
+            search_channel = create_secure_channel('localhost:50052')
+            search_stub = search_pb2_grpc.SearchServiceStub(search_channel)
+
+            search_request = search_pb2.SearchRequest(
+                source=source,
+                destination=destination
             )
 
-        search_channel = grpc.insecure_channel('localhost:50052')
-        search_stub = search_pb2_grpc.SearchServiceStub(search_channel)
+            with tracer.start_as_current_span("Search Flights Logic") as span:
+                span.set_attribute("source", source)
+                span.set_attribute("destination", destination)
+                search_response = call_with_retry(
+                    lambda req: search_cb.call(search_stub.SearchFlights, req),
+                    search_request
+                )
 
-        search_request = search_pb2.SearchRequest(
-            source=source,
-            destination=destination
-        )
+            num_flights = len(search_response.flights)
 
-        search_response = call_with_retry(
-            lambda req: search_cb.call(search_stub.SearchFlights, req),
-            search_request
-        )
-        num_flights = len(search_response.flights)
-
-        return orchestrator_pb2.BookingResponse(
-            success=True,
-            message=f"{num_flights} flights found"
-        )
+            return orchestrator_pb2.BookingResponse(
+                success=True,
+                message=f"{num_flights} flights found"
+            )
     
     def StreamFlightPrices(self, request, context):
+
+
 
         source = request.source
         destination = request.destination
@@ -126,7 +169,7 @@ class OrchestratorService(orchestrator_pb2_grpc.OrchestratorServiceServicer):
         print("Orchestrator streaming prices...")
 
         # connect to search service
-        search_channel = grpc.insecure_channel('localhost:50052')
+        search_channel = create_secure_channel('localhost:50052')
         search_stub = search_pb2_grpc.SearchServiceStub(search_channel)
 
         search_request = search_pb2.SearchRequest(
@@ -134,14 +177,22 @@ class OrchestratorService(orchestrator_pb2_grpc.OrchestratorServiceServicer):
             destination=destination
         )
 
+
         responses = search_stub.StreamFlightPrices(search_request)
 
-  
+
         for flight in responses:
             yield flight
 
 
 def serve():
+
+    init_tracing("orchestrator")
+
+    GrpcInstrumentorServer().instrument()   
+    GrpcInstrumentorClient().instrument()   
+
+    
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
     orchestrator_pb2_grpc.add_OrchestratorServiceServicer_to_server(

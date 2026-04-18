@@ -7,12 +7,15 @@ import search_pb2_grpc
 import time
 import random
 
+from tracing import init_tracing
+from opentelemetry.instrumentation.grpc import GrpcInstrumentorServer
+
 class SearchService(search_pb2_grpc.SearchServiceServicer):
 
     def SearchFlights(self, request, context):
 
-        if random.random() < 0.5:
-          raise Exception("Search service failed randomly")
+        # if random.random() < 0.5:
+        #   raise Exception("Search service failed randomly")
         
         print("Received search request for source:", request.source, "destination:", request.destination)
 
@@ -46,11 +49,31 @@ class SearchService(search_pb2_grpc.SearchServiceServicer):
 
 
 def serve():
+
+    init_tracing("search-service")
+
+    GrpcInstrumentorServer().instrument()
+
+    with open("certs/server.key", "rb") as f:
+        private_key = f.read()
+
+    with open("certs/server.crt", "rb") as f:
+        certificate_chain = f.read()
+
+    with open("certs/ca.crt", "rb") as f:
+        ca_cert = f.read()
+
+    server_credentials = grpc.ssl_server_credentials(
+    [(private_key, certificate_chain)],
+    root_certificates=ca_cert,
+    require_client_auth=True
+)
+
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
     search_pb2_grpc.add_SearchServiceServicer_to_server(SearchService(), server)
 
-    server.add_insecure_port('[::]:50052')
+    server.add_secure_port('[::]:50052', server_credentials)
 
     server.start()
     print("Search Service running on port 50052...")

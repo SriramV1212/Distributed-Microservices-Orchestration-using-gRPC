@@ -2,8 +2,14 @@ import grpc
 import orchestrator_pb2
 import orchestrator_pb2_grpc
 
+from tracing import init_tracing
+from opentelemetry.instrumentation.grpc import GrpcInstrumentorClient
+
 
 def run():
+    init_tracing("orchestrator")
+    GrpcInstrumentorClient().instrument()
+    
     channel = grpc.insecure_channel('localhost:50053')
 
     stub = orchestrator_pb2_grpc.OrchestratorServiceStub(channel)
