@@ -5,10 +5,13 @@ import orchestrator_pb2_grpc
 from tracing import init_tracing
 from opentelemetry.instrumentation.grpc import GrpcInstrumentorClient
 
+import random
+
+
+init_tracing("orchestrator")
+GrpcInstrumentorClient().instrument()
 
 def run():
-    init_tracing("orchestrator")
-    GrpcInstrumentorClient().instrument()
     
     channel = grpc.insecure_channel('localhost:50053')
 
@@ -24,6 +27,10 @@ def run():
 
     print("Booking Response:", response.message)
 
+    # FOR STREAMING PRICES - UNCOMMENT TO TEST
+
+    # responses = stub.StreamFlightPrices(request)
+
     # for flight in responses:
     #     print("Orchestrator Live Price:", flight.price)
 
@@ -31,4 +38,10 @@ def run():
 
 
 if __name__ == "__main__":
+
+    # SIMULATE MULTIPLE REQUESTS - UNCOMMENT TO TEST
+    # requests = random.randint(20, 50)
+    # for x in range (requests):
+    #     run()
+
     run()

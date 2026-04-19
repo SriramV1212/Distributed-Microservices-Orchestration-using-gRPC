@@ -5,22 +5,40 @@ import user_pb2
 import user_pb2_grpc
 
 from tracing import init_tracing
-from opentelemetry.instrumentation.grpc import (
-    GrpcInstrumentorServer,
-    GrpcInstrumentorClient
-)
+from opentelemetry.instrumentation.grpc import GrpcInstrumentorServer
+
+import time
+from prometheus_client import start_http_server
+from metrics import REQUEST_COUNT, ERROR_COUNT, REQUEST_LATENCY
+
+start_http_server(8000)
 
 
 class UserService(user_pb2_grpc.UserServiceServicer):
 
     def ValidateUser(self, request, context):
-        user_id = request.user_id
-        print("Received request for user_id:", user_id)
+        start_time = time.time()
 
-        if user_id == "123":
-            return user_pb2.UserResponse(is_valid=True)
-        else:
-            return user_pb2.UserResponse(is_valid=False)
+        REQUEST_COUNT.labels(service="user", method="ValidateUser").inc()
+
+        try:
+            user_id = request.user_id
+            print("Received request for user_id:", user_id)
+
+            if user_id == "123":
+                response = user_pb2.UserResponse(is_valid=True)
+            else:
+                response = user_pb2.UserResponse(is_valid=False)
+
+            return response
+
+        except Exception as e:
+            ERROR_COUNT.labels(service="user", method="ValidateUser").inc()
+            raise e
+
+        finally:
+            duration = time.time() - start_time
+            REQUEST_LATENCY.labels(service="user", method="ValidateUser").observe(duration)
 
 
 def serve():

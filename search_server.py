@@ -10,42 +10,71 @@ import random
 from tracing import init_tracing
 from opentelemetry.instrumentation.grpc import GrpcInstrumentorServer
 
+from prometheus_client import start_http_server
+from metrics import REQUEST_COUNT, ERROR_COUNT, REQUEST_LATENCY
+
+start_http_server(8001)
+
 class SearchService(search_pb2_grpc.SearchServiceServicer):
 
     def SearchFlights(self, request, context):
 
-        # if random.random() < 0.5:
-        #   raise Exception("Search service failed randomly")
-        
-        print("Received search request for source:", request.source, "destination:", request.destination)
+        start_time = time.time()
+        REQUEST_COUNT.labels(service="search", method="SearchFlights").inc()
 
-        source = request.source
-        destination = request.destination
+        try:
 
-        flights = [
-            search_pb2.Flight(flight_id="F1", airline="Delta", price=200.0),
-            search_pb2.Flight(flight_id="F2", airline="United", price=250.0),
-        ]
+            # SIMULATE RANDOM FAILURES TO TEST CIRCUIT BREAKER IN ORCHESTRATOR - UNCOMMENT TO TEST
 
-        return search_pb2.SearchResponse(flights=flights)
+            # if random.random() < 0.5:
+            #     raise Exception("Search service failed randomly")
+            
+            print("Received search request for source:", request.source, "destination:", request.destination)
+
+            flights = [
+                search_pb2.Flight(flight_id="F1", airline="Delta", price=200.0),
+                search_pb2.Flight(flight_id="F2", airline="United", price=250.0),
+            ]
+
+            return search_pb2.SearchResponse(flights=flights)
+
+        except Exception as e:
+            ERROR_COUNT.labels(service="search", method="SearchFlights").inc()
+            raise e
+
+        finally:
+            duration = time.time() - start_time
+            REQUEST_LATENCY.labels(service="search", method="SearchFlights").observe(duration)
 
 
     def StreamFlightPrices(self, request, context):
-        print("Streaming prices...")
+        start_time = time.time()
 
-        # simulate live updates
-        for i in range(5):
-            price = random.uniform(180, 300)
+        REQUEST_COUNT.labels(service="search", method="StreamFlightPrices").inc()
 
-            flight = search_pb2.Flight(
-                flight_id="F1",
-                airline="Delta",
-                price=price
-            )
+        try:
+            print("Streaming prices...")
 
-            yield flight   
+            for i in range(5):
+                price = random.uniform(180, 300)
 
-            time.sleep(1)
+                flight = search_pb2.Flight(
+                    flight_id="F1",
+                    airline="Delta",
+                    price=price
+                )
+
+                yield flight
+
+                time.sleep(1)
+
+        except Exception as e:
+            ERROR_COUNT.labels(service="search", method="StreamFlightPrices").inc()
+            raise e
+
+        finally:
+            duration = time.time() - start_time
+            REQUEST_LATENCY.labels(service="search", method="StreamFlightPrices").observe(duration)
 
 
 def serve():

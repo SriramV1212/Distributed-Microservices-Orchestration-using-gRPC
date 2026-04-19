@@ -20,6 +20,11 @@ from opentelemetry.instrumentation.grpc import (
 
 from opentelemetry import trace
 
+from prometheus_client import start_http_server
+from metrics import REQUEST_COUNT, ERROR_COUNT, REQUEST_LATENCY
+
+start_http_server(8002)
+
 tracer = trace.get_tracer(__name__)
 
 
@@ -112,30 +117,87 @@ class OrchestratorService(orchestrator_pb2_grpc.OrchestratorServiceServicer):
 
     def BookFlight(self, request, context):
 
-        with tracer.start_as_current_span("Book Flight Business Logic"):
+        start_time = time.time()
 
-            user_id = request.user_id
+        REQUEST_COUNT.labels(service="orchestrator", method="BookFlight").inc()
+
+        try:
+
+            with tracer.start_as_current_span("Book Flight Business Logic"):
+
+                user_id = request.user_id
+                source = request.source
+                destination = request.destination
+
+                print("Orchestrator received request")
+
+                user_channel = create_secure_channel('localhost:50051')
+                user_stub = user_pb2_grpc.UserServiceStub(user_channel)
+
+                user_request = user_pb2.UserRequest(user_id=user_id)
+
+                with tracer.start_as_current_span("Validate User Logic") as span:
+                    span.set_attribute("user_id", user_id)
+                    span.set_attribute("source", source)
+                    span.set_attribute("destination", destination)
+                    user_response = call_with_retry(user_stub.ValidateUser, user_request)
+
+                if not user_response.is_valid:
+                    return orchestrator_pb2.BookingResponse(
+                        success=False,
+                        message="User is invalid"
+                    )
+
+
+                search_channel = create_secure_channel('localhost:50052')
+                search_stub = search_pb2_grpc.SearchServiceStub(search_channel)
+
+                search_request = search_pb2.SearchRequest(
+                    source=source,
+                    destination=destination
+                )
+
+                with tracer.start_as_current_span("Search Flights Logic") as span:
+                    span.set_attribute("source", source)
+                    span.set_attribute("destination", destination)
+                    search_response = call_with_retry(
+                        lambda req: search_cb.call(search_stub.SearchFlights, req),
+                        search_request
+                    )
+
+                num_flights = len(search_response.flights)
+
+                flight_lines = []
+                for flight in search_response.flights:
+                    flight_lines.append(f"  - {flight.flight_id}: ${flight.price} ({flight.airline})")
+
+                message = f"{num_flights} flights found from {source} to {destination} for user {user_id}:\n" + "\n".join(flight_lines)
+
+                return orchestrator_pb2.BookingResponse(success=True, message=message)
+            
+        except Exception as e:
+            ERROR_COUNT.labels(service="orchestrator", method="BookFlight").inc()
+            raise e 
+        
+        finally:
+            duration = time.time() - start_time
+            REQUEST_LATENCY.labels(service="orchestrator", method="BookFlight").observe(duration)
+
+    
+    def StreamFlightPrices(self, request, context):
+
+        start_time = time.time()
+
+        REQUEST_COUNT.labels(service="orchestrator", method="StreamFlightPrices").inc()
+
+        try:
+
             source = request.source
             destination = request.destination
 
-            print("Orchestrator received request")
+            print("Orchestrator streaming prices...")
 
-            user_channel = create_secure_channel('localhost:50051')
-            user_stub = user_pb2_grpc.UserServiceStub(user_channel)
-
-            user_request = user_pb2.UserRequest(user_id=user_id)
-
-            with tracer.start_as_current_span("Validate User Logic") as span:
-                span.set_attribute("user_id", user_id)
-                user_response = call_with_retry(user_stub.ValidateUser, user_request)
-
-            if not user_response.is_valid:
-                return orchestrator_pb2.BookingResponse(
-                    success=False,
-                    message="User is invalid"
-                )
-
-
+            # connect to search service
             search_channel = create_secure_channel('localhost:50052')
             search_stub = search_pb2_grpc.SearchServiceStub(search_channel)
 
@@ -144,45 +206,21 @@ class OrchestratorService(orchestrator_pb2_grpc.OrchestratorServiceServicer):
                 destination=destination
             )
 
-            with tracer.start_as_current_span("Search Flights Logic") as span:
-                span.set_attribute("source", source)
-                span.set_attribute("destination", destination)
-                search_response = call_with_retry(
-                    lambda req: search_cb.call(search_stub.SearchFlights, req),
-                    search_request
-                )
 
-            num_flights = len(search_response.flights)
-
-            return orchestrator_pb2.BookingResponse(
-                success=True,
-                message=f"{num_flights} flights found"
-            )
-    
-    def StreamFlightPrices(self, request, context):
+            responses = search_stub.StreamFlightPrices(search_request)
 
 
+            with tracer.start_as_current_span("Streaming Prices Logic"):
+                for flight in responses:
+                    yield flight
 
-        source = request.source
-        destination = request.destination
-
-        print("Orchestrator streaming prices...")
-
-        # connect to search service
-        search_channel = create_secure_channel('localhost:50052')
-        search_stub = search_pb2_grpc.SearchServiceStub(search_channel)
-
-        search_request = search_pb2.SearchRequest(
-            source=source,
-            destination=destination
-        )
-
-
-        responses = search_stub.StreamFlightPrices(search_request)
-
-
-        for flight in responses:
-            yield flight
+        except Exception as e:
+            ERROR_COUNT.labels(service="orchestrator", method="StreamFlightPrices").inc()
+            raise e
+        
+        finally:
+            duration = time.time() - start_time
+            REQUEST_LATENCY.labels(service="orchestrator", method="StreamFlightPrices").observe(duration)
 
 
 def serve():

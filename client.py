@@ -2,9 +2,26 @@ import grpc
 import user_pb2
 import user_pb2_grpc
 
+def get_ssl_credentials():
+    with open("certs/client.key", "rb") as f:
+        client_key = f.read()
+
+    with open("certs/client.crt", "rb") as f:
+        client_cert = f.read()
+
+    with open("certs/ca.crt", "rb") as f:
+        ca_cert = f.read()
+
+    return grpc.ssl_channel_credentials(
+        root_certificates=ca_cert,
+        private_key=client_key,
+        certificate_chain=client_cert
+    )
+
+
 
 def run():
-    channel = grpc.insecure_channel('localhost:50051')
+    channel = grpc.secure_channel('localhost:50051', get_ssl_credentials())
 
     stub = user_pb2_grpc.UserServiceStub(channel)
 
