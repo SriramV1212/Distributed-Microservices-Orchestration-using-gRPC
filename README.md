@@ -131,7 +131,7 @@ Enable the simulated failure block in `services/search_server.py` to trigger:
 
 ## Architecture
 
-![Architecture] (docs/images/architecture.png)
+![Architecture](docs/images/architecture.png)
 
 - a client sends requests to the orchestrator
 - the orchestrator calls the user and search services over gRPC
