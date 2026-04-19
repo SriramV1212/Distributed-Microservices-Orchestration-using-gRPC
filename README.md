@@ -90,7 +90,7 @@ python clients/orchestrator_client.py
 - `clients/` contains simple clients for testing each service
 - `services/` contains the three gRPC services
 - `shared/` contains common tracing and metrics utilities
-- `grpc_stubs/` contains generated protobuf and gRPC stub files
+- `grpc_stubs/` contains generated protobuf and gRPC stub files (not included in repo)
 - `proto/` contains source `.proto` definitions
 - `docs/` contains architecture notes and screenshots
 
