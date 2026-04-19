@@ -1,16 +1,18 @@
 # Python cache
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
 
-# Virtual environment
+# Virtual environments
+.venv/
 venv/
 env/
-.grpc_project/
-bin/
-lib/
-include/
+grpc_project/
+
+# Test / tool caches
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
 
 # macOS
 .DS_Store

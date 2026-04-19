@@ -1,8 +1,8 @@
 import grpc
-import orchestrator_pb2
-import orchestrator_pb2_grpc
+import grpc_stubs.orchestrator_pb2 as orchestrator_pb2
+import grpc_stubs.orchestrator_pb2_grpc as orchestrator_pb2_grpc
 
-from tracing import init_tracing
+from shared.tracing import init_tracing
 from opentelemetry.instrumentation.grpc import GrpcInstrumentorClient
 
 import random

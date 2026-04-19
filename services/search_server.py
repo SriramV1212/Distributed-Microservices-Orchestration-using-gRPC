@@ -1,19 +1,22 @@
 import grpc
 from concurrent import futures
 
-import search_pb2
-import search_pb2_grpc
+import grpc_stubs.search_pb2 as search_pb2
+import grpc_stubs.search_pb2_grpc as search_pb2_grpc
 
+import logging
 import time
 import random
 
-from tracing import init_tracing
+from shared.tracing import init_tracing
 from opentelemetry.instrumentation.grpc import GrpcInstrumentorServer
 
 from prometheus_client import start_http_server
-from metrics import REQUEST_COUNT, ERROR_COUNT, REQUEST_LATENCY
+from shared.metrics import REQUEST_COUNT, ERROR_COUNT, REQUEST_LATENCY
 
 start_http_server(8001)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class SearchService(search_pb2_grpc.SearchServiceServicer):
 
@@ -29,7 +32,11 @@ class SearchService(search_pb2_grpc.SearchServiceServicer):
             # if random.random() < 0.5:
             #     raise Exception("Search service failed randomly")
             
-            print("Received search request for source:", request.source, "destination:", request.destination)
+            logger.info(
+                "Received SearchFlights request for source=%s destination=%s",
+                request.source,
+                request.destination,
+            )
 
             flights = [
                 search_pb2.Flight(flight_id="F1", airline="Delta", price=200.0),
@@ -40,7 +47,7 @@ class SearchService(search_pb2_grpc.SearchServiceServicer):
 
         except Exception as e:
             ERROR_COUNT.labels(service="search", method="SearchFlights").inc()
-            raise e
+            raise
 
         finally:
             duration = time.time() - start_time
@@ -53,7 +60,7 @@ class SearchService(search_pb2_grpc.SearchServiceServicer):
         REQUEST_COUNT.labels(service="search", method="StreamFlightPrices").inc()
 
         try:
-            print("Streaming prices...")
+            logger.info("Streaming flight prices")
 
             for i in range(5):
                 price = random.uniform(180, 300)
@@ -70,7 +77,7 @@ class SearchService(search_pb2_grpc.SearchServiceServicer):
 
         except Exception as e:
             ERROR_COUNT.labels(service="search", method="StreamFlightPrices").inc()
-            raise e
+            raise
 
         finally:
             duration = time.time() - start_time
@@ -105,7 +112,7 @@ def serve():
     server.add_secure_port('[::]:50052', server_credentials)
 
     server.start()
-    print("Search Service running on port 50052...")
+    logger.info("Search service running on port 50052")
 
     server.wait_for_termination()
 

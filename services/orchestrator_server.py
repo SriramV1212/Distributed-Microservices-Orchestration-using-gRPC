@@ -1,18 +1,19 @@
 import grpc
 from concurrent import futures
 
-import orchestrator_pb2
-import orchestrator_pb2_grpc
+import grpc_stubs.orchestrator_pb2 as orchestrator_pb2
+import grpc_stubs.orchestrator_pb2_grpc as orchestrator_pb2_grpc
 
-import user_pb2
-import user_pb2_grpc
+import grpc_stubs.user_pb2 as user_pb2
+import grpc_stubs.user_pb2_grpc as user_pb2_grpc
 
-import search_pb2
-import search_pb2_grpc
+import grpc_stubs.search_pb2 as search_pb2
+import grpc_stubs.search_pb2_grpc as search_pb2_grpc
 
+import logging
 import time
 
-from tracing import init_tracing
+from shared.tracing import init_tracing
 from opentelemetry.instrumentation.grpc import (
     GrpcInstrumentorServer,
     GrpcInstrumentorClient
@@ -21,9 +22,11 @@ from opentelemetry.instrumentation.grpc import (
 from opentelemetry import trace
 
 from prometheus_client import start_http_server
-from metrics import REQUEST_COUNT, ERROR_COUNT, REQUEST_LATENCY
+from shared.metrics import REQUEST_COUNT, ERROR_COUNT, REQUEST_LATENCY
 
 start_http_server(8002)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 tracer = trace.get_tracer(__name__)
 
@@ -42,7 +45,7 @@ class CircuitBreaker:
 
         if self.state == "OPEN":
             if time.time() - self.last_failure_time > self.recovery_time:
-                print("Trying half-open state...")
+                logger.info("Circuit breaker moving to HALF_OPEN state")
                 self.state = "HALF_OPEN"
             else:
                 raise Exception("Circuit is OPEN. Skipping call.")
@@ -53,7 +56,7 @@ class CircuitBreaker:
             self.failure_count = 0
             self.state = "CLOSED"
 
-            print("Circuit is CLOSED. Call successful.")
+            logger.info("Circuit breaker call succeeded; state=CLOSED")
 
             return response
 
@@ -63,13 +66,13 @@ class CircuitBreaker:
 
             self.last_failure_time = time.time()
 
-            print(f"Circuit failure count: {self.failure_count}")
+            logger.warning("Circuit breaker failure count=%s", self.failure_count)
 
             if self.failure_count >= self.failure_threshold:
                 self.state = "OPEN"
-                print("Circuit OPENED!")
+                logger.warning("Circuit breaker opened")
 
-            raise e
+            raise
 
 
 search_cb = CircuitBreaker()
@@ -84,10 +87,10 @@ def call_with_retry(func, request, max_retries=3):
             return func(request)
 
         except Exception as e:
-            print(f"Attempt {attempt+1} failed: {str(e)}")
+            logger.warning("Retry attempt %s failed: %s", attempt + 1, str(e))
 
             if attempt == max_retries - 1:
-                raise e
+                raise
 
             time.sleep(delay)
             delay *= 2  # exponential backoff
@@ -129,7 +132,12 @@ class OrchestratorService(orchestrator_pb2_grpc.OrchestratorServiceServicer):
                 source = request.source
                 destination = request.destination
 
-                print("Orchestrator received request")
+                logger.info(
+                    "Received BookFlight request for user_id=%s source=%s destination=%s",
+                    user_id,
+                    source,
+                    destination,
+                )
 
                 user_channel = create_secure_channel('localhost:50051')
                 user_stub = user_pb2_grpc.UserServiceStub(user_channel)
@@ -177,7 +185,7 @@ class OrchestratorService(orchestrator_pb2_grpc.OrchestratorServiceServicer):
             
         except Exception as e:
             ERROR_COUNT.labels(service="orchestrator", method="BookFlight").inc()
-            raise e 
+            raise
         
         finally:
             duration = time.time() - start_time
@@ -195,7 +203,11 @@ class OrchestratorService(orchestrator_pb2_grpc.OrchestratorServiceServicer):
             source = request.source
             destination = request.destination
 
-            print("Orchestrator streaming prices...")
+            logger.info(
+                "Streaming flight prices for source=%s destination=%s",
+                source,
+                destination,
+            )
 
             # connect to search service
             search_channel = create_secure_channel('localhost:50052')
@@ -216,7 +228,7 @@ class OrchestratorService(orchestrator_pb2_grpc.OrchestratorServiceServicer):
 
         except Exception as e:
             ERROR_COUNT.labels(service="orchestrator", method="StreamFlightPrices").inc()
-            raise e
+            raise
         
         finally:
             duration = time.time() - start_time
@@ -240,7 +252,7 @@ def serve():
     server.add_insecure_port('[::]:50053')
 
     server.start()
-    print("Orchestrator running on port 50053...")
+    logger.info("Orchestrator service running on port 50053")
 
     server.wait_for_termination()
 

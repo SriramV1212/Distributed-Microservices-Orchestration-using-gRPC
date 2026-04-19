@@ -1,17 +1,20 @@
 import grpc
 from concurrent import futures
 
-import user_pb2
-import user_pb2_grpc
+import grpc_stubs.user_pb2 as user_pb2
+import grpc_stubs.user_pb2_grpc as user_pb2_grpc
 
-from tracing import init_tracing
+from shared.tracing import init_tracing
 from opentelemetry.instrumentation.grpc import GrpcInstrumentorServer
 
+import logging
 import time
 from prometheus_client import start_http_server
-from metrics import REQUEST_COUNT, ERROR_COUNT, REQUEST_LATENCY
+from shared.metrics import REQUEST_COUNT, ERROR_COUNT, REQUEST_LATENCY
 
 start_http_server(8000)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 class UserService(user_pb2_grpc.UserServiceServicer):
@@ -23,7 +26,7 @@ class UserService(user_pb2_grpc.UserServiceServicer):
 
         try:
             user_id = request.user_id
-            print("Received request for user_id:", user_id)
+            logger.info("Received ValidateUser request for user_id=%s", user_id)
 
             if user_id == "123":
                 response = user_pb2.UserResponse(is_valid=True)
@@ -34,7 +37,7 @@ class UserService(user_pb2_grpc.UserServiceServicer):
 
         except Exception as e:
             ERROR_COUNT.labels(service="user", method="ValidateUser").inc()
-            raise e
+            raise
 
         finally:
             duration = time.time() - start_time
@@ -69,7 +72,7 @@ def serve():
     server.add_secure_port('[::]:50051', server_credentials)
 
     server.start()
-    print("Server is running on port 50051...")
+    logger.info("User service running on port 50051")
 
     server.wait_for_termination()
 

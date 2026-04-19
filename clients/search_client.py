@@ -1,6 +1,6 @@
 import grpc
-import search_pb2
-import search_pb2_grpc
+import grpc_stubs.search_pb2 as search_pb2
+import grpc_stubs.search_pb2_grpc as search_pb2_grpc
 
 
 def get_ssl_credentials():

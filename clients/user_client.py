@@ -1,6 +1,6 @@
 import grpc
-import user_pb2
-import user_pb2_grpc
+import grpc_stubs.user_pb2 as user_pb2
+import grpc_stubs.user_pb2_grpc as user_pb2_grpc
 
 def get_ssl_credentials():
     with open("certs/client.key", "rb") as f:
