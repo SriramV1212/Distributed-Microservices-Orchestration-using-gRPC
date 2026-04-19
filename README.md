@@ -128,6 +128,17 @@ Enable the simulated failure block in `services/search_server.py` to trigger:
 - retries
 - circuit breaker behavior
 
+
+## Architecture
+
+![Architecture] (docs/images/architecture.png)
+
+- a client sends requests to the orchestrator
+- the orchestrator calls the user and search services over gRPC
+- Prometheus scrapes service metrics
+- Grafana visualizes the metrics
+- OpenTelemetry exports traces to Jaeger
+
 ## Observability
 
 The system includes full observability across services:
@@ -149,15 +160,6 @@ Suggested demo flow:
 
 This diagram shows how Prometheus scrapes metrics from the services, Grafana visualizes those metrics, and Jaeger receives traces emitted by all services.
 
-## Architecture
-
-- a client sends requests to the orchestrator
-- the orchestrator calls the user and search services over gRPC
-- Prometheus scrapes service metrics
-- Grafana visualizes the metrics
-- OpenTelemetry exports traces to Jaeger
-
-You can add a system diagram in [docs/architecture.md](/Users/sriram/Desktop/PROJECTS/Distributed%20Microservices%20Orchestration%20using%20gRPC/docs/architecture.md).
 
 ## Observability Dashboard
 
