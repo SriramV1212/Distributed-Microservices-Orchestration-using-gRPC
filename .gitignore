@@ -27,6 +27,6 @@ htmlcov/
 # Environment variables
 .env
 
-# gRPC generated files (IMPORTANT)
-*_pb2.py
-*_pb2_grpc.py
+# gRPC generated files 
+grpc_stubs/
+

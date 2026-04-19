@@ -1,3 +1,10 @@
+from pathlib import Path
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 import grpc
 from concurrent import futures
 
@@ -15,6 +22,7 @@ from shared.metrics import REQUEST_COUNT, ERROR_COUNT, REQUEST_LATENCY
 start_http_server(8000)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+CERTS_DIR = PROJECT_ROOT / "certs"
 
 
 class UserService(user_pb2_grpc.UserServiceServicer):
@@ -49,13 +57,13 @@ def serve():
 
     GrpcInstrumentorServer().instrument()
 
-    with open("certs/server.key", "rb") as f:
+    with open(CERTS_DIR / "server.key", "rb") as f:
         private_key = f.read()
 
-    with open("certs/server.crt", "rb") as f:
+    with open(CERTS_DIR / "server.crt", "rb") as f:
         certificate_chain = f.read()
 
-    with open("certs/ca.crt", "rb") as f:
+    with open(CERTS_DIR / "ca.crt", "rb") as f:
         ca_cert = f.read()
 
     server_credentials = grpc.ssl_server_credentials(

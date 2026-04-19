@@ -1,3 +1,10 @@
+from pathlib import Path
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 import grpc
 from concurrent import futures
 
@@ -29,6 +36,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 tracer = trace.get_tracer(__name__)
+CERTS_DIR = PROJECT_ROOT / "certs"
 
 
 class CircuitBreaker:
@@ -96,13 +104,13 @@ def call_with_retry(func, request, max_retries=3):
             delay *= 2  # exponential backoff
 
 def get_ssl_credentials():
-    with open("certs/client.key", "rb") as f:
+    with open(CERTS_DIR / "client.key", "rb") as f:
         client_key = f.read()
 
-    with open("certs/client.crt", "rb") as f:
+    with open(CERTS_DIR / "client.crt", "rb") as f:
         client_cert = f.read()
 
-    with open("certs/ca.crt", "rb") as f:
+    with open(CERTS_DIR / "ca.crt", "rb") as f:
         ca_cert = f.read()
 
     return grpc.ssl_channel_credentials(
