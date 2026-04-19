@@ -161,7 +161,7 @@ Suggested demo flow:
 This diagram shows how Prometheus scrapes metrics from the services, Grafana visualizes those metrics, and Jaeger receives traces emitted by all services.
 
 
-## Observability Dashboard
+## Grafana Dashboard
 
 ![Grafana Dashboard](docs/images/dashboard.png)
 
