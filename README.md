@@ -22,15 +22,44 @@ The system uses gRPC for service-to-service communication, mTLS for secure inter
 
 ## Setup
 
-### 1. Install dependencies
+### 1. Clone the repository
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+git clone <your-repo-url>
+cd Distributed-Microservices-Orchestration-using-gRPC
 ```
 
-### 2. Start the observability stack
+### 2. Create virtual environment and install dependencies
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+```
+
+### 3. Generate gRPC stubs
+
+```bash
+mkdir -p grpc_stubs
+
+python3 -m grpc_tools.protoc \
+  -I=proto \
+  --python_out=grpc_stubs \
+  --grpc_python_out=grpc_stubs \
+  proto/*.proto
+touch grpc_stubs/__init__.py
+```
+
+### 4. Configure Python path (required)
+
+```bash
+export PYTHONPATH=$PYTHONPATH:./grpc_stubs
+```
+
+This ensures generated protobuf files can be imported correctly.
+
+### 5. Start the observability stack
 
 ```bash
 docker compose up -d
@@ -47,20 +76,20 @@ Grafana login:
 - Username: `admin`
 - Password: `admin`
 
-### 3. Run the gRPC services
+### 6. Run the gRPC services
 
-Open separate terminals and start:
+Run each service in a separate terminal:
 
 ```bash
-python services/user_server.py
-python services/search_server.py
-python services/orchestrator_server.py
+python3 -m services.user_server
+python3 -m services.search_server
+python3 -m services.orchestrator_server
 ```
 
-### 4. Run the client
+### 7. Run the client
 
 ```bash
-python clients/orchestrator_client.py
+python3 clients/orchestrator_client.py
 ```
 
 ## Project Structure
